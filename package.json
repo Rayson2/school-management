@@ -1,0 +1,33 @@
+{
+  "name": "schoolsite-backend",
+  "scripts": {
+    "dev:client": "cd client && bun dev --host",
+    "dev:server": "bun run --hot server/index.ts",
+    "dev": "conc -k \"bun run dev:client\" \"bun run dev:server\"",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "bun run server/seeds/index.ts"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.6",
+    "@neondatabase/serverless": "^1.0.2",
+    "@tailwindcss/vite": "^4.2.1",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.12.2",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.19.0",
+    "tailwindcss": "^4.2.1",
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/bun": "^1.3.9",
+    "concurrently": "^9.2.1",
+    "drizzle-kit": "^0.31.9"
+  }
+}

@@ -1,0 +1,54 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.*
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+out/
+target/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Temporary files
+tmp/
+temp/
+
+# Coverage
+coverage/
+
+# Cache
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Java
+*.class
+
+# Archives
+*.zip
+*.tar
+*.gz    
+*.rar
+
+# Uploads folder
+/uploads/
+
+# YAML files
+*.yml
