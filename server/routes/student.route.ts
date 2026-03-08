@@ -141,21 +141,59 @@ const normalizeEnrollmentPrefix = (value: string | null | undefined) => {
   return normalized || "ENR";
 };
 
+const getErrorCandidateList = (err: any): any[] => {
+  const queue = [err];
+  const candidates: any[] = [];
+  const visited = new Set<any>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+    candidates.push(current);
+
+    if (current.cause) queue.push(current.cause);
+    if (current.error) queue.push(current.error);
+    if (current.originalError) queue.push(current.originalError);
+  }
+
+  return candidates;
+};
+
+const getUniqueConstraintName = (err: any): string | null => {
+  for (const candidate of getErrorCandidateList(err)) {
+    if (candidate?.code === "23505" && typeof candidate?.constraint === "string") {
+      return candidate.constraint;
+    }
+  }
+  return null;
+};
+
+const getUniqueConstraintMessage = (constraint: string | null): string | null => {
+  if (constraint === "students_enrollmentNo_unique") {
+    return "Student with this enrollment number already exists";
+  }
+  if (constraint === "students_rollNumber_unique") {
+    return "Student with this roll number already exists";
+  }
+  if (constraint === "users_username_unique") {
+    return "Student with this admission number already exists";
+  }
+  return null;
+};
+
 const getNextEnrollmentNo = async (
   tx: any,
-  sessionId: string,
   enrollmentPrefix: string,
 ) => {
   const prefix = normalizeEnrollmentPrefix(enrollmentPrefix);
   const rows = await tx
     .select({ enrollmentNo: studentsTable.enrollmentNo })
     .from(studentsTable)
-    .where(
-      and(
-        eq(studentsTable.sessionId, sessionId),
-        ilike(studentsTable.enrollmentNo, `${prefix}%`),
-      ),
-    );
+    .where(ilike(studentsTable.enrollmentNo, `${prefix}%`));
 
   let maxSuffix = 0;
   for (const row of rows) {
@@ -454,7 +492,6 @@ studentRouter.post(
               requestedEnrollmentNo ||
               (await getNextEnrollmentNo(
                 tx,
-                session.id,
                 session.enrollmentPrefix,
               )),
             admissionNo: studentData.admissionNo,
@@ -502,6 +539,14 @@ studentRouter.post(
       }
       if (err?.type === "bad_request") {
         return c.json<ErrorResponse>({ success: false, error: err.message }, HttpStatus.BadRequest);
+      }
+      const uniqueConstraint = getUniqueConstraintName(err);
+      const uniqueMessage = getUniqueConstraintMessage(uniqueConstraint);
+      if (uniqueMessage) {
+        return c.json<ErrorResponse>(
+          { success: false, error: uniqueMessage },
+          HttpStatus.Conflict,
+        );
       }
       console.error("Error adding student:", err);
       return c.json<ErrorResponse>({ success: false, error: "Failed to add student" }, HttpStatus.InternalServerError);
@@ -553,7 +598,6 @@ studentRouter.put(
         if (!nextEnrollmentNo) {
           nextEnrollmentNo = await getNextEnrollmentNo(
             tx,
-            session.id,
             session.enrollmentPrefix,
           );
         }
@@ -659,6 +703,14 @@ studentRouter.put(
         return c.json<ErrorResponse>(
           { success: false, error: err.message },
           HttpStatus.BadRequest,
+        );
+      }
+      const uniqueConstraint = getUniqueConstraintName(err);
+      const uniqueMessage = getUniqueConstraintMessage(uniqueConstraint);
+      if (uniqueMessage) {
+        return c.json<ErrorResponse>(
+          { success: false, error: uniqueMessage },
+          HttpStatus.Conflict,
         );
       }
       console.error("Error updating student:", err);
