@@ -25,6 +25,11 @@ export const examTypeEnum = pgEnum("exam_type", [
   "half_yearly",
   "annual",
 ]);
+export const admitCardAccessModeEnum = pgEnum("admit_card_access_mode", [
+  "off",
+  "only_paid",
+  "all",
+]);
 export const resultComponentEnum = pgEnum("result_component", [
   "assignment_1",
   "internal_1",
@@ -170,6 +175,32 @@ export const studentExamEnrollmentsTable = pgTable(
   ],
 );
 
+export const examAdmitCardControlsTable = pgTable(
+  "exam_admit_card_controls",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    examId: uuid("examId")
+      .notNull()
+      .references(() => examsTable.id, { onDelete: "cascade" }),
+    mode: admitCardAccessModeEnum("mode").notNull().default("off"),
+    resultMode: admitCardAccessModeEnum("resultMode").notNull().default("off"),
+    newStudentAmount: integer("newStudentAmount").notNull().default(0),
+    oldStudentAmount: integer("oldStudentAmount").notNull().default(0),
+    createdBy: uuid("createdBy")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "restrict" }),
+    updatedBy: uuid("updatedBy")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "restrict" }),
+    createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).$onUpdateFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("exam_admit_card_controls_exam_unique").on(table.examId),
+    index("exam_admit_card_controls_mode_idx").on(table.mode),
+  ],
+);
+
 export const examSubjectComponentsTable = pgTable(
   "exam_subject_components",
   {
@@ -198,3 +229,5 @@ export type ExamSubject = typeof examSubjectsTable.$inferSelect;
 export type StudentExamEnrollment =
   typeof studentExamEnrollmentsTable.$inferSelect;
 export type ExamSubjectComponent = typeof examSubjectComponentsTable.$inferSelect;
+export type ExamAdmitCardControl =
+  typeof examAdmitCardControlsTable.$inferSelect;

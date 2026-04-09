@@ -10,6 +10,8 @@ import { db } from "../db";
 import { academicSessionsTable } from "../db/schemas/academicSessions";
 import { classesTable } from "../db/schemas/classes";
 import {
+  admitCardAccessModeEnum,
+  examAdmitCardControlsTable,
   examSubjectComponentsTable,
   examsTable,
   examSubjectsTable,
@@ -27,6 +29,12 @@ import {
   type ResultComponent,
   getComponentsForExamType,
 } from "../utils/exam-structure";
+import {
+  evaluateStudentAdmitCardAccess,
+  evaluateStudentResultAccess,
+  getExamAdmitCardControlContext,
+  getExamAdmitCardStudentStatuses,
+} from "../utils/admit-card-control";
 import { Role } from "../utils/roles";
 import { ErrorResponse, HttpStatus, SuccessResponse } from "../utils/types";
 
@@ -40,6 +48,16 @@ const examParamSchema = z.object({
 
 const admitCardQuerySchema = z.object({
   studentId: z.string().uuid().optional(),
+});
+
+const admitCardControlUpdateSchema = z.object({
+  mode: z.enum(admitCardAccessModeEnum.enumValues),
+  newStudentAmount: z.coerce.number().int().min(0),
+  oldStudentAmount: z.coerce.number().int().min(0),
+});
+
+const resultControlUpdateSchema = z.object({
+  resultMode: z.enum(admitCardAccessModeEnum.enumValues),
 });
 
 const marksheetParamSchema = z.object({
@@ -1165,6 +1183,300 @@ resultsRouter.post(
 );
 
 resultsRouter.get(
+  "/admit-card-control/:examId",
+  requireAuth,
+  requireRoles([Role.ADMIN]),
+  zValidator("param", examParamSchema, (result, c) => {
+    if (!result.success) {
+      return c.json<ErrorResponse>(
+        { success: false, error: "Invalid exam id" },
+        HttpStatus.BadRequest,
+      );
+    }
+  }),
+  async (c) => {
+    try {
+      const { examId } = c.req.valid("param");
+      const result = await getExamAdmitCardStudentStatuses(examId);
+
+      if (!result) {
+        return c.json<ErrorResponse>(
+          { success: false, error: "Exam not found" },
+          HttpStatus.NotFound,
+        );
+      }
+
+      const paidCount = result.students.filter((student) => student.fullyPaid).length;
+
+      return c.json<SuccessResponse>({
+        success: true,
+        message: "Admit card control data retrieved successfully",
+        data: {
+          exam: {
+            id: result.context.examId,
+            name: result.context.examName,
+            examType: result.context.examType,
+            academicYear: result.context.academicYear,
+            classId: result.context.classId,
+            className: result.context.className,
+            sessionId: result.context.sessionId,
+            sessionName: result.context.sessionName,
+          },
+          control: {
+            mode: result.context.mode,
+            newStudentAmount: result.context.newStudentAmount,
+            oldStudentAmount: result.context.oldStudentAmount,
+            defaultNewStudentAmount: result.context.defaultNewAmount,
+            defaultOldStudentAmount: result.context.defaultOldAmount,
+            startMonth: result.context.startMonth,
+            startYear: result.context.startYear,
+            endMonth: result.context.endMonth,
+            endYear: result.context.endYear,
+            updatedAt: result.context.updatedAt,
+          },
+          summary: {
+            totalStudents: result.students.length,
+            paidStudents: paidCount,
+            unpaidStudents: result.students.length - paidCount,
+          },
+          students: result.students,
+        },
+      });
+    } catch (err) {
+      console.error("Error retrieving admit card control data:", err);
+      return c.json<ErrorResponse>(
+        { success: false, error: "Failed to retrieve admit card control data" },
+        HttpStatus.InternalServerError,
+      );
+    }
+  },
+);
+
+resultsRouter.put(
+  "/admit-card-control/:examId",
+  requireAuth,
+  requireRoles([Role.ADMIN]),
+  zValidator("param", examParamSchema, (result, c) => {
+    if (!result.success) {
+      return c.json<ErrorResponse>(
+        { success: false, error: "Invalid exam id" },
+        HttpStatus.BadRequest,
+      );
+    }
+  }),
+  zValidator("json", admitCardControlUpdateSchema, (result, c) => {
+    if (!result.success) {
+      return c.json<ErrorResponse>(
+        { success: false, error: "Invalid admit card control payload" },
+        HttpStatus.BadRequest,
+      );
+    }
+  }),
+  async (c) => {
+    try {
+      const { examId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const user = c.get("user") as { id: string };
+
+      const exam = await db
+        .select({ id: examsTable.id })
+        .from(examsTable)
+        .where(eq(examsTable.id, examId))
+        .limit(1);
+
+      if (!exam.length) {
+        return c.json<ErrorResponse>(
+          { success: false, error: "Exam not found" },
+          HttpStatus.NotFound,
+        );
+      }
+
+      await db
+        .insert(examAdmitCardControlsTable)
+        .values({
+          examId,
+          mode: body.mode,
+          newStudentAmount: body.newStudentAmount,
+          oldStudentAmount: body.oldStudentAmount,
+          createdBy: user.id,
+          updatedBy: user.id,
+        })
+        .onConflictDoUpdate({
+          target: [examAdmitCardControlsTable.examId],
+          set: {
+            mode: body.mode,
+            newStudentAmount: body.newStudentAmount,
+            oldStudentAmount: body.oldStudentAmount,
+            updatedBy: user.id,
+            updatedAt: new Date(),
+          },
+        });
+
+      return c.json<SuccessResponse>({
+        success: true,
+        message: "Admit card control settings saved successfully",
+      });
+    } catch (err) {
+      console.error("Error saving admit card control settings:", err);
+      return c.json<ErrorResponse>(
+        { success: false, error: "Failed to save admit card control settings" },
+        HttpStatus.InternalServerError,
+      );
+    }
+  },
+);
+
+resultsRouter.get(
+  "/result-control/:examId",
+  requireAuth,
+  requireRoles([Role.ADMIN]),
+  zValidator("param", examParamSchema, (result, c) => {
+    if (!result.success) {
+      return c.json<ErrorResponse>(
+        { success: false, error: "Invalid exam id" },
+        HttpStatus.BadRequest,
+      );
+    }
+  }),
+  async (c) => {
+    try {
+      const { examId } = c.req.valid("param");
+      const result = await getExamAdmitCardStudentStatuses(examId);
+
+      if (!result) {
+        return c.json<ErrorResponse>(
+          { success: false, error: "Exam not found" },
+          HttpStatus.NotFound,
+        );
+      }
+
+      const paidCount = result.students.filter((student) => student.fullyPaid).length;
+
+      return c.json<SuccessResponse>({
+        success: true,
+        message: "Result control data retrieved successfully",
+        data: {
+          exam: {
+            id: result.context.examId,
+            name: result.context.examName,
+            examType: result.context.examType,
+            academicYear: result.context.academicYear,
+            classId: result.context.classId,
+            className: result.context.className,
+            sessionId: result.context.sessionId,
+            sessionName: result.context.sessionName,
+          },
+          control: {
+            mode: result.context.resultMode,
+            newStudentAmount: Math.max(
+              result.context.newStudentAmount,
+              result.context.defaultNewAmount ?? 0,
+            ),
+            oldStudentAmount: Math.max(
+              result.context.oldStudentAmount,
+              result.context.defaultOldAmount ?? 0,
+            ),
+            defaultNewStudentAmount: result.context.defaultNewAmount,
+            defaultOldStudentAmount: result.context.defaultOldAmount,
+            startMonth: result.context.startMonth,
+            startYear: result.context.startYear,
+            endMonth: result.context.endMonth,
+            endYear: result.context.endYear,
+            updatedAt: result.context.updatedAt,
+          },
+          summary: {
+            totalStudents: result.students.length,
+            paidStudents: paidCount,
+            unpaidStudents: result.students.length - paidCount,
+          },
+          students: result.students,
+        },
+      });
+    } catch (err) {
+      console.error("Error retrieving result control data:", err);
+      return c.json<ErrorResponse>(
+        { success: false, error: "Failed to retrieve result control data" },
+        HttpStatus.InternalServerError,
+      );
+    }
+  },
+);
+
+resultsRouter.put(
+  "/result-control/:examId",
+  requireAuth,
+  requireRoles([Role.ADMIN]),
+  zValidator("param", examParamSchema, (result, c) => {
+    if (!result.success) {
+      return c.json<ErrorResponse>(
+        { success: false, error: "Invalid exam id" },
+        HttpStatus.BadRequest,
+      );
+    }
+  }),
+  zValidator("json", resultControlUpdateSchema, (result, c) => {
+    if (!result.success) {
+      return c.json<ErrorResponse>(
+        { success: false, error: "Invalid result control payload" },
+        HttpStatus.BadRequest,
+      );
+    }
+  }),
+  async (c) => {
+    try {
+      const { examId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const user = c.get("user") as { id: string };
+      const context = await getExamAdmitCardControlContext(examId);
+
+      const exam = await db
+        .select({ id: examsTable.id })
+        .from(examsTable)
+        .where(eq(examsTable.id, examId))
+        .limit(1);
+
+      if (!exam.length) {
+        return c.json<ErrorResponse>(
+          { success: false, error: "Exam not found" },
+          HttpStatus.NotFound,
+        );
+      }
+
+      await db
+        .insert(examAdmitCardControlsTable)
+        .values({
+          examId,
+          mode: "off",
+          resultMode: body.resultMode,
+          newStudentAmount: Math.max(context?.newStudentAmount ?? 0, context?.defaultNewAmount ?? 0),
+          oldStudentAmount: Math.max(context?.oldStudentAmount ?? 0, context?.defaultOldAmount ?? 0),
+          createdBy: user.id,
+          updatedBy: user.id,
+        })
+        .onConflictDoUpdate({
+          target: [examAdmitCardControlsTable.examId],
+          set: {
+            resultMode: body.resultMode,
+            updatedBy: user.id,
+            updatedAt: new Date(),
+          },
+        });
+
+      return c.json<SuccessResponse>({
+        success: true,
+        message: "Result control settings saved successfully",
+      });
+    } catch (err) {
+      console.error("Error saving result control settings:", err);
+      return c.json<ErrorResponse>(
+        { success: false, error: "Failed to save result control settings" },
+        HttpStatus.InternalServerError,
+      );
+    }
+  },
+);
+
+resultsRouter.get(
   "/my-results",
   requireAuth,
   requireRoles([Role.STUDENT]),
@@ -1181,13 +1493,20 @@ resultsRouter.get(
       }
 
       const results = await getStudentExamResults(student.studentId);
+      const accessibleResults = [];
+
+      for (const exam of results) {
+        const access = await evaluateStudentResultAccess(exam.examId, student.studentId);
+        if (!access?.allowed) continue;
+        accessibleResults.push(exam);
+      }
 
       return c.json<SuccessResponse>({
         success: true,
         message: "Student results retrieved successfully",
         data: {
           student,
-          exams: results,
+          exams: accessibleResults,
         },
       });
     } catch (err) {
@@ -1263,6 +1582,28 @@ resultsRouter.get(
           { success: false, error: "Student not found for admit card generation" },
           HttpStatus.NotFound,
         );
+      }
+
+      const isStudentUser = userRoles.includes(Role.STUDENT);
+      if (isStudentUser) {
+        const access = await evaluateStudentAdmitCardAccess(examId, targetStudentId);
+
+        if (!access) {
+          return c.json<ErrorResponse>(
+            { success: false, error: "Admit card access data not found for this student" },
+            HttpStatus.NotFound,
+          );
+        }
+
+        if (!access.allowed) {
+          return c.json<ErrorResponse>(
+            {
+              success: false,
+              error: access.reason ?? "Admit card access is blocked for this student",
+            },
+            HttpStatus.Forbidden,
+          );
+        }
       }
 
       const rows = await db
@@ -1436,6 +1777,20 @@ resultsRouter.get(
 
       const examResults = await getStudentExamResults(student.studentId, examId);
       const result = examResults[0];
+
+      const access = await evaluateStudentResultAccess(examId, student.studentId);
+      if (!access) {
+        return c.json<ErrorResponse>(
+          { success: false, error: "Result access data not found for this student" },
+          HttpStatus.NotFound,
+        );
+      }
+      if (!access.allowed) {
+        return c.json<ErrorResponse>(
+          { success: false, error: access.reason ?? "Result access is blocked for this student" },
+          HttpStatus.Forbidden,
+        );
+      }
 
       if (!result) {
         return c.json<ErrorResponse>(
@@ -1674,6 +2029,23 @@ resultsRouter.get(
           HttpStatus.Forbidden,
         );
       }
+
+      if (userRoles.includes(Role.STUDENT)) {
+        const access = await evaluateStudentResultAccess(examId, studentId);
+        if (!access) {
+          return c.json<ErrorResponse>(
+            { success: false, error: "Result access data not found for this student" },
+            HttpStatus.NotFound,
+          );
+        }
+        if (!access.allowed) {
+          return c.json<ErrorResponse>(
+            { success: false, error: access.reason ?? "Result access is blocked for this student" },
+            HttpStatus.Forbidden,
+          );
+        }
+      }
+
       const data = await buildOfficialMarksheetData(studentId, examId);
 
       return c.json<SuccessResponse>({

@@ -103,6 +103,7 @@ const navData: NavItem[] = [
     subItems: [
       { title: "List of Exams", url: "/dashboard/exams" },
       { title: "Add Exam", url: "/dashboard/exams/add" },
+      { title: "Admit Card Control", url: "/dashboard/exams/admit-card-control", requiredRoles: ["admin"] },
       { title: "Admit Card", url: "/dashboard/exams/admit-card", requiredRoles: ["admin"] },
     ],
   },
@@ -171,6 +172,8 @@ const navData: NavItem[] = [
     requiredRoles: ["admin", "student"],
     subItems: [
       { title: "My Results", url: "/dashboard/my-results", requiredRoles: ["student"] },
+      { title: "Result Control", url: "/dashboard/results/result-control", requiredRoles: ["admin"] },
+      { title: "Admit Card", url: "/dashboard/results/admit-card", requiredRoles: ["student"] },
       { title: "RT Sheet", url: "/dashboard/rt-sheet", requiredRoles: ["admin"] },
       { title: "Result Logo", url: "/dashboard/results/logo", requiredRoles: ["admin"] },
     ],

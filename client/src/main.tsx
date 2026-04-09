@@ -29,6 +29,7 @@ import SessionsPage from "./pages/dashboard/sessions";
 import CreateSessionPage from "./pages/dashboard/sessions/create";
 import ExamsPage from "./pages/dashboard/exams";
 import AddExamPage from "./pages/dashboard/exams/add";
+import AdmitCardControlPage from "./pages/dashboard/exams/admit-card-control";
 import EditExamPage from "./pages/dashboard/exams/edit";
 import AddSubjectPage from "./pages/dashboard/subjects/add";
 import ClassSubjectsPage from "./pages/dashboard/class-subjects";
@@ -49,6 +50,7 @@ import StudentCopyMarksheetPage from "./pages/dashboard/results/student-copy-mar
 import OfficialMarksheetPage from "./pages/dashboard/results/official-marksheet";
 import OfficialMarksheetBulkPage from "./pages/dashboard/results/official-marksheet-bulk";
 import ResultLogoPage from "./pages/dashboard/results/logo";
+import ResultControlPage from "./pages/dashboard/results/result-control";
 import DashboardAdmitCardPage from "./pages/dashboard/results/admit-card";
 import PayrollIndexPage from "./pages/dashboard/payroll";
 import AddPayrollPage from "./pages/dashboard/payroll/Add";
@@ -74,6 +76,7 @@ const adminRoutes = [
   { path: "sessions/create", element: <CreateSessionPage /> },
   { path: "exams", element: <ExamsPage /> },
   { path: "exams/add", element: <AddExamPage /> },
+  { path: "exams/admit-card-control", element: <AdmitCardControlPage /> },
   { path: "exams/:id/edit", element: <EditExamPage /> },
   { path: "subjects/add", element: <AddSubjectPage /> },
   { path: "class-subjects", element: <ClassSubjectsPage /> },
@@ -82,6 +85,7 @@ const adminRoutes = [
   { path: "cms/certificate", element: <CMSCertificatePage /> },
   { path: "documents", element: <DocumentsManagementPage /> },
   { path: "results/logo", element: <ResultLogoPage /> },
+  { path: "results/result-control", element: <ResultControlPage /> },
   { path: "payroll", element: <PayrollIndexPage /> },
   { path: "payroll/add", element: <AddPayrollPage /> },
   { path: "payroll/:id/edit", element: <EditPayrollPage /> },
