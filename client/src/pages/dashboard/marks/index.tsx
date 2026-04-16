@@ -91,6 +91,12 @@ export default function MarksPage() {
   const markInput = selectedExamData?.markInput ?? {};
   const isLoadingExam = Boolean(examId) && loadingExamId === examId;
   const hasCachedExamData = Boolean(selectedExamData);
+  const selectedExamListItem = exams.find((item) => item.id === examId);
+  const marksEntryMode =
+    selectedExamData?.examDetails?.marksEntryMode ??
+    selectedExamListItem?.marksEntryMode ??
+    "closed";
+  const isMarksEntryClosedForTeacher = isTeacherOnly && marksEntryMode !== "open";
 
   useEffect(() => {
     setSessionsLoading(true);
@@ -429,6 +435,7 @@ export default function MarksPage() {
                 saving ||
                 isLoadingExam ||
                 !selectedSessionId ||
+                isMarksEntryClosedForTeacher ||
                 !hasTeacherSubjectAccess ||
                 !selectedSubjectId
               }
@@ -489,6 +496,7 @@ export default function MarksPage() {
                   {exam.academicYear}
                   {" - "}
                   {exam.status}
+                  {exam.marksEntryMode === "open" ? " - entry open" : " - entry closed"}
                 </option>
               ))}
             </select>
@@ -548,7 +556,11 @@ export default function MarksPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {isTeacherOnly && !hasTeacherSubjectAccess ? (
+                {isMarksEntryClosedForTeacher ? (
+                  <p className="text-sm text-amber-700">
+                    Marks entry is currently closed for this class. Contact admin to open it from marks control.
+                  </p>
+                ) : isTeacherOnly && !hasTeacherSubjectAccess ? (
                   <p className="text-sm text-amber-700">
                     No subject is assigned to you for this exam. Contact admin to map teacher-subject before entering marks.
                   </p>

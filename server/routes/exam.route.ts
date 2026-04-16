@@ -1,10 +1,13 @@
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { and, eq, ilike, inArray, ne } from "drizzle-orm";
+import z from "zod";
 import { db } from "../db";
 import { academicSessionsTable } from "../db/schemas/academicSessions";
 import { classesTable } from "../db/schemas/classes";
 import {
   classSubjectsTable,
+  examMarksControlsTable,
   examsTable,
   examSubjectComponentsTable,
   examSubjectsTable,
@@ -42,6 +45,14 @@ import {
 import { ErrorResponse, HttpStatus, SuccessResponse } from "../utils/types";
 
 const examRouter = new Hono();
+
+const examIdParamSchema = z.object({
+  examId: z.string().uuid(),
+});
+
+const marksControlUpdateSchema = z.object({
+  mode: z.enum(["closed", "open"]),
+});
 
 const toDateOrUndefined = (value?: string) => {
   if (!value) return undefined;
@@ -133,6 +144,28 @@ const getTeacherProfileId = async (userId: string) => {
     .where(eq(teachersTable.userId, userId))
     .limit(1);
   return rows[0]?.id;
+};
+
+const getMarksControlMode = async (examId: string) => {
+  const rows = await db
+    .select({ mode: examMarksControlsTable.mode })
+    .from(examMarksControlsTable)
+    .where(eq(examMarksControlsTable.examId, examId))
+    .limit(1);
+
+  return rows[0]?.mode ?? "closed";
+};
+
+const ensureTeacherMarksEntryAccess = async (userRoles: string[], examId: string) => {
+  if (userRoles.includes(Role.ADMIN)) return null;
+
+  const mode = await getMarksControlMode(examId);
+  if (mode === "open") return null;
+
+  return {
+    success: false,
+    error: "Marks entry is currently closed for this class. Contact admin to open it.",
+  } satisfies ErrorResponse;
 };
 
 const createExamSubjectsAndComponents = async (
@@ -1445,16 +1478,21 @@ examRouter.get(
           creatorId: usersTable.id,
           creatorName: usersTable.fullName,
           className: classesTable.name,
+          marksEntryMode: examMarksControlsTable.mode,
         })
         .from(examsTable)
         .innerJoin(usersTable, eq(examsTable.createdBy, usersTable.id))
         .innerJoin(classesTable, eq(examsTable.classId, classesTable.id))
+        .leftJoin(examMarksControlsTable, eq(examMarksControlsTable.examId, examsTable.id))
         .where(sessionId ? eq(examsTable.sessionId, sessionId) : undefined);
 
       return c.json<SuccessResponse>({
         success: true,
         message: "Exams retrieved successfully",
-        data: rows,
+        data: rows.map((row) => ({
+          ...row,
+          marksEntryMode: row.marksEntryMode ?? "closed",
+        })),
       });
     } catch (err) {
       console.error("Error retrieving exams:", err);
@@ -1465,6 +1503,138 @@ examRouter.get(
     }
   },
 );
+
+examRouter.get(
+  "/marks-control/:examId",
+  requireAuth,
+  requireRoles([Role.ADMIN]),
+  zValidator("param", examIdParamSchema),
+  async (c) => {
+    const { examId } = c.req.valid("param");
+
+    try {
+      const rows = await db
+        .select({
+          examId: examsTable.id,
+          examName: examsTable.name,
+          examType: examsTable.examType,
+          academicYear: examsTable.academicYear,
+          classId: examsTable.classId,
+          className: classesTable.name,
+          sessionId: examsTable.sessionId,
+          sessionName: academicSessionsTable.name,
+          mode: examMarksControlsTable.mode,
+          updatedAt: examMarksControlsTable.updatedAt,
+          updatedBy: examMarksControlsTable.updatedBy,
+          updatedByName: usersTable.fullName,
+        })
+        .from(examsTable)
+        .innerJoin(classesTable, eq(examsTable.classId, classesTable.id))
+        .innerJoin(
+          academicSessionsTable,
+          eq(examsTable.sessionId, academicSessionsTable.id),
+        )
+        .leftJoin(examMarksControlsTable, eq(examMarksControlsTable.examId, examsTable.id))
+        .leftJoin(usersTable, eq(examMarksControlsTable.updatedBy, usersTable.id))
+        .where(eq(examsTable.id, examId))
+        .limit(1);
+
+      if (!rows.length) {
+        return c.json<ErrorResponse>(
+          { success: false, error: "Exam not found" },
+          HttpStatus.NotFound,
+        );
+      }
+
+      const row = rows[0];
+      return c.json<SuccessResponse>({
+        success: true,
+        message: "Marks control retrieved successfully",
+        data: {
+          exam: {
+            id: row.examId,
+            name: row.examName,
+            examType: row.examType,
+            academicYear: row.academicYear,
+            classId: row.classId,
+            className: row.className,
+            sessionId: row.sessionId,
+            sessionName: row.sessionName,
+          },
+          control: {
+            mode: row.mode ?? "closed",
+            updatedAt: row.updatedAt ?? null,
+            updatedBy: row.updatedBy ?? null,
+            updatedByName: row.updatedByName ?? null,
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Error retrieving marks control:", err);
+      return c.json<ErrorResponse>(
+        { success: false, error: "Failed to retrieve marks control" },
+        HttpStatus.InternalServerError,
+      );
+    }
+  },
+);
+
+examRouter.put(
+  "/marks-control/:examId",
+  requireAuth,
+  requireRoles([Role.ADMIN]),
+  zValidator("param", examIdParamSchema),
+  zValidator("json", marksControlUpdateSchema),
+  async (c) => {
+    const { examId } = c.req.valid("param");
+    const { mode } = c.req.valid("json");
+    const user = (c as any).get("user") as { id: string };
+
+    try {
+      const examExists = await db
+        .select({ id: examsTable.id })
+        .from(examsTable)
+        .where(eq(examsTable.id, examId))
+        .limit(1);
+
+      if (!examExists.length) {
+        return c.json<ErrorResponse>(
+          { success: false, error: "Exam not found" },
+          HttpStatus.NotFound,
+        );
+      }
+
+      await db
+        .insert(examMarksControlsTable)
+        .values({
+          examId,
+          mode,
+          createdBy: user.id,
+          updatedBy: user.id,
+        })
+        .onConflictDoUpdate({
+          target: examMarksControlsTable.examId,
+          set: {
+            mode,
+            updatedBy: user.id,
+            updatedAt: new Date(),
+          },
+        });
+
+      return c.json<SuccessResponse>({
+        success: true,
+        message: "Marks control updated successfully",
+      });
+    } catch (err) {
+      console.error("Error updating marks control:", err);
+      return c.json<ErrorResponse>(
+        { success: false, error: "Failed to update marks control" },
+        HttpStatus.InternalServerError,
+      );
+    }
+  },
+);
+
 examRouter.post(
   "/marks",
   requireAuth,
@@ -1477,6 +1647,13 @@ examRouter.post(
     const isAdmin = userRoles.includes(Role.ADMIN);
 
     try {
+      if (!isAdmin && examId) {
+        const accessError = await ensureTeacherMarksEntryAccess(userRoles, examId);
+        if (accessError) {
+          return c.json<ErrorResponse>(accessError, HttpStatus.Forbidden);
+        }
+      }
+
       const normalizedEntries = entries.map((entry) => ({ ...entry }));
 
       if (examId) {
@@ -1587,6 +1764,15 @@ examRouter.post(
       );
 
       const examIds = Array.from(new Set(examSubjects.map((row) => row.examId)));
+      if (!isAdmin) {
+        for (const itemExamId of examIds) {
+          const accessError = await ensureTeacherMarksEntryAccess(userRoles, itemExamId);
+          if (accessError) {
+            return c.json<ErrorResponse>(accessError, HttpStatus.Forbidden);
+          }
+        }
+      }
+
       const enrollmentRows = await db
         .select({
           examId: studentExamEnrollmentsTable.examId,
@@ -1999,7 +2185,13 @@ examRouter.get(
   requireRoles([Role.ADMIN, Role.TEACHER]),
   async (c) => {
     const examId = c.req.param("id");
+    const userRoles = ((c as any).get("userRole") as string[] | undefined) ?? [];
     try {
+      const accessError = await ensureTeacherMarksEntryAccess(userRoles, examId);
+      if (accessError) {
+        return c.json<ErrorResponse>(accessError, HttpStatus.Forbidden);
+      }
+
       const examExists = await db
         .select({ id: examsTable.id })
         .from(examsTable)
@@ -2055,7 +2247,13 @@ examRouter.get(
   requireRoles([Role.ADMIN, Role.TEACHER]),
   async (c) => {
     const examId = c.req.param("id");
+    const userRoles = ((c as any).get("userRole") as string[] | undefined) ?? [];
     try {
+      const accessError = await ensureTeacherMarksEntryAccess(userRoles, examId);
+      if (accessError) {
+        return c.json<ErrorResponse>(accessError, HttpStatus.Forbidden);
+      }
+
       const exam = await db
         .select({ id: examsTable.id })
         .from(examsTable)
@@ -2126,8 +2324,14 @@ examRouter.get(
   requireRoles([Role.ADMIN, Role.TEACHER]),
   async (c) => {
     const examId = c.req.param("id");
+    const userRoles = ((c as any).get("userRole") as string[] | undefined) ?? [];
 
     try {
+      const accessError = await ensureTeacherMarksEntryAccess(userRoles, examId);
+      if (accessError) {
+        return c.json<ErrorResponse>(accessError, HttpStatus.Forbidden);
+      }
+
       const exam = await db
         .select({
           id: examsTable.id,
@@ -2146,10 +2350,12 @@ examRouter.get(
           createdByName: usersTable.fullName,
           createdAt: examsTable.createdAt,
           updatedAt: examsTable.updatedAt,
+          marksEntryMode: examMarksControlsTable.mode,
         })
         .from(examsTable)
         .innerJoin(usersTable, eq(examsTable.createdBy, usersTable.id))
         .innerJoin(classesTable, eq(examsTable.classId, classesTable.id))
+        .leftJoin(examMarksControlsTable, eq(examMarksControlsTable.examId, examsTable.id))
         .where(eq(examsTable.id, examId))
         .limit(1);
 
@@ -2251,6 +2457,7 @@ examRouter.get(
         message: "Exam retrieved successfully",
         data: {
           ...exam[0],
+          marksEntryMode: exam[0].marksEntryMode ?? "closed",
           subjects: subjects.map((subject) => ({
             ...subject,
             components: componentsByExamSubjectId.get(subject.examSubjectId) ?? [],

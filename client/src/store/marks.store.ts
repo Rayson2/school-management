@@ -8,12 +8,14 @@ export type ExamListItem = {
   examType: "quarterly" | "half_yearly" | "annual";
   academicYear: string;
   status: "draft" | "scheduled" | "completed";
+  marksEntryMode?: "closed" | "open";
 };
 
 export type ExamDetails = {
   id: string;
   name: string;
   examType: "quarterly" | "half_yearly" | "annual";
+  marksEntryMode?: "closed" | "open";
   subjects: Array<{
     examSubjectId: string;
     subjectId: string;

@@ -34,6 +34,7 @@ import EditExamPage from "./pages/dashboard/exams/edit";
 import AddSubjectPage from "./pages/dashboard/subjects/add";
 import ClassSubjectsPage from "./pages/dashboard/class-subjects";
 import MarksPage from "./pages/dashboard/marks";
+import MarksControlPage from "./pages/dashboard/marks/control";
 import CarouselPage from "./pages/dashboard/cms/carousel";
 import CMSGalleryPage from "./pages/dashboard/cms/gallery";
 import CMSCertificatePage from "./pages/dashboard/cms/certificate";
@@ -86,6 +87,7 @@ const adminRoutes = [
   { path: "documents", element: <DocumentsManagementPage /> },
   { path: "results/logo", element: <ResultLogoPage /> },
   { path: "results/result-control", element: <ResultControlPage /> },
+  { path: "marks/control", element: <MarksControlPage /> },
   { path: "payroll", element: <PayrollIndexPage /> },
   { path: "payroll/add", element: <AddPayrollPage /> },
   { path: "payroll/:id/edit", element: <EditPayrollPage /> },

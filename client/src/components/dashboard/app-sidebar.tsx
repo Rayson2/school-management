@@ -136,7 +136,10 @@ const navData: NavItem[] = [
     title: "Marks",
     icon: ClipboardCheck,
     requiredRoles: ["admin", "teacher"],
-    subItems: [{ title: "Enter Marks", url: "/dashboard/marks" }],
+    subItems: [
+      { title: "Enter Marks", url: "/dashboard/marks" },
+      { title: "Marks Control", url: "/dashboard/marks/control", requiredRoles: ["admin"] },
+    ],
   },
   {
     title: "Attendance",
