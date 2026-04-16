@@ -65,6 +65,7 @@ import NoticesPage from "./pages/dashboard/notices";
 import RecordsPage from "./pages/dashboard/records";
 import AttendancePage from "./pages/dashboard/attendance";
 import AttendanceRecordsPage from "./pages/dashboard/attendance/records";
+import AdmissionInquiriesPage from "./pages/dashboard/admissions/inquiries";
 
 const adminRoutes = [
   { path: "students", element: <StudentsPage /> },
@@ -94,6 +95,7 @@ const adminRoutes = [
   { path: "fees", element: <FeeManagementPage /> },
   { path: "fees/records", element: <StudentMonthlyFeeRecordsPage /> },
   { path: "attendance", element: <AttendancePage /> },
+  { path: "admissions/inquiries", element: <AdmissionInquiriesPage /> },
 ];
 
 const adminTeacherRoutes = [

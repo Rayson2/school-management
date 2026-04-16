@@ -6,6 +6,7 @@ import {
   Users,
   BookOpen,
   CalendarDays,
+  FileUser,
   ClipboardList,
   ClipboardCheck,
   ScrollText,
@@ -95,6 +96,12 @@ const navData: NavItem[] = [
       { title: "Manage Sessions", url: "/dashboard/sessions" },
       { title: "Create Session", url: "/dashboard/sessions/create" },
     ],
+  },
+  {
+    title: "Admissions",
+    icon: FileUser,
+    requiredRoles: ["admin"],
+    subItems: [{ title: "Inquiry Management", url: "/dashboard/admissions/inquiries" }],
   },
   {
     title: "Exams",

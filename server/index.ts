@@ -16,6 +16,7 @@ import certificateRouter from "./routes/certificate.route";
 import carouselRouter from "./routes/carousel.route";
 import noticeRouter from "./routes/notice.route";
 import attendanceRouter from "./routes/attendance.route";
+import admissionInquiryRouter from "./routes/admission-inquiry.route";
 
 
 const app = new Hono();
@@ -48,6 +49,7 @@ app.route("/gallery", galleryRouter);
 app.route("/certificate", certificateRouter);
 app.route("/notice", noticeRouter);
 app.route("/attendance", attendanceRouter);
+app.route("/admission-inquiry", admissionInquiryRouter);
 
 export default {
   fetch: app.fetch,
