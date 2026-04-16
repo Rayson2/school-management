@@ -17,5 +17,5 @@ export async function getUserRoles(userId: string): Promise<string[]> {
     .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
     .where(eq(userRolesTable.userId, userId));
 
-  return userRoles.map((ur) => ur.roleName);
+  return userRoles.map((ur: { roleName: string }) => ur.roleName);
 }

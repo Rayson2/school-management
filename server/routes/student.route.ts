@@ -11,13 +11,14 @@ import {
 import { usersTable } from "../db/schemas/users";
 import { hashSync } from "bcryptjs";
 import { rolesTable, userRolesTable } from "../db/schemas/roles";
-import { and, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { documentsTable } from "../db/schemas/documents";
 import { classesTable } from "../db/schemas/classes";
 import { academicSessionsTable } from "../db/schemas/academicSessions";
 import { mkdir, unlink } from "fs/promises";
 import * as path from "path";
 import { randomUUID } from "crypto";
+import { ensureDocumentSchema } from "../utils/document-schema";
 
 const studentRouter = new Hono();
 type StudentWithUser = Student & {
@@ -35,6 +36,7 @@ type DocumentItem = {
   fileSize: string | null;
   fileType: string | null;
   documentType: string;
+  status: string;
   uploadedAt: Date | null;
   updatedAt: Date | null;
 };
@@ -893,7 +895,8 @@ studentRouter.get(
       const docs = await db
         .select()
         .from(documentsTable)
-        .where(eq(documentsTable.userId, student[0].userId));
+        .where(eq(documentsTable.userId, student[0].userId))
+        .orderBy(desc(documentsTable.uploadedAt));
 
       return c.json<SuccessResponse<DocumentItem[]>>({
         success: true,
@@ -918,6 +921,7 @@ studentRouter.post(
     const studentId = c.req.param("id");
 
     try {
+      await ensureDocumentSchema();
       const student = await db
         .select({
           id: studentsTable.id,
@@ -976,6 +980,7 @@ studentRouter.post(
             fileSize: String(file.size),
             fileType: file.type || extension.replace(".", "") || "unknown",
             documentType: inferredType,
+            status: "pending",
           })
           .returning();
 
@@ -1016,6 +1021,7 @@ studentRouter.delete(
     const documentId = c.req.param("documentId");
 
     try {
+      await ensureDocumentSchema();
       const student = await db
         .select({
           id: studentsTable.id,

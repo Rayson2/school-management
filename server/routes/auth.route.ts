@@ -15,6 +15,8 @@ import { teachersTable } from "../db/schemas/teachers";
 import { mkdir, unlink } from "fs/promises";
 import * as path from "path";
 import { randomUUID } from "crypto";
+import { getUserRoles, Role } from "../utils/roles";
+import { resolveStudentUploadControl } from "../utils/student-upload-controls";
 
 const authRouter = new Hono();
 const uploadRootDir = path.join(process.cwd(), "server", "upload");
@@ -278,6 +280,17 @@ authRouter.post("/profile-pic", requireAuth, async (c) => {
   const user = c.get("user") as { id: string; username?: string };
 
   try {
+    const userRoles = await getUserRoles(user.id);
+    if (userRoles.includes(Role.STUDENT)) {
+      const control = await resolveStudentUploadControl(user.id);
+      if (!control.profileUploadEnabled) {
+        return c.json<ErrorResponse>(
+          { success: false, error: "Profile picture upload is currently turned off for your account" },
+          HttpStatus.Forbidden,
+        );
+      }
+    }
+
     const existingUser = await db
       .select({ avatarUrl: usersTable.avatarUrl })
       .from(usersTable)

@@ -66,6 +66,7 @@ import RecordsPage from "./pages/dashboard/records";
 import AttendancePage from "./pages/dashboard/attendance";
 import AttendanceRecordsPage from "./pages/dashboard/attendance/records";
 import AdmissionInquiriesPage from "./pages/dashboard/admissions/inquiries";
+import LeaveRequestsPage from "./pages/dashboard/leave";
 
 const adminRoutes = [
   { path: "students", element: <StudentsPage /> },
@@ -86,6 +87,7 @@ const adminRoutes = [
   { path: "cms/gallery", element: <CMSGalleryPage /> },
   { path: "cms/certificate", element: <CMSCertificatePage /> },
   { path: "documents", element: <DocumentsManagementPage /> },
+  { path: "documents/controls", element: <DocumentsManagementPage /> },
   { path: "results/logo", element: <ResultLogoPage /> },
   { path: "results/result-control", element: <ResultControlPage /> },
   { path: "marks/control", element: <MarksControlPage /> },
@@ -135,6 +137,8 @@ const sharedResultRoutes = [
 const studentRoutes = [{ path: "my-results", element: <MyResultsPage /> }];
 
 const sharedNoticeRoutes = [{ path: "notices", element: <NoticesPage /> }];
+
+const sharedLeaveRoutes = [{ path: "leave", element: <LeaveRequestsPage /> }];
 
 const sharedPayrollRoutes = [
   { path: "payroll/:id", element: <ViewPayrollPage /> },
@@ -245,6 +249,18 @@ createRoot(document.getElementById("root")!).render(
             ))}
 
             {sharedNoticeRoutes.map((route) => (
+              <Route
+                key={route.path}
+                path={route.path}
+                element={
+                  <RoleProtectedRoute requiredRoles={["admin", "teacher", "student"]}>
+                    {route.element}
+                  </RoleProtectedRoute>
+                }
+              />
+            ))}
+
+            {sharedLeaveRoutes.map((route) => (
               <Route
                 key={route.path}
                 path={route.path}

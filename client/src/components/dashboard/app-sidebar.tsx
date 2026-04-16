@@ -137,7 +137,7 @@ const navData: NavItem[] = [
     title: "Documents",
     icon: FolderOpen,
     requiredRoles: ["admin"],
-    subItems: [{ title: "Manage Documents", url: "/dashboard/documents" }],
+    subItems: [{ title: "Document Center", url: "/dashboard/documents" }],
   },
   {
     title: "Marks",
@@ -193,6 +193,12 @@ const navData: NavItem[] = [
     icon: Bell,
     requiredRoles: ["admin", "teacher", "student"],
     subItems: [{ title: "Notice Board", url: "/dashboard/notices" }],
+  },
+  {
+    title: "Leaves",
+    icon: CalendarDays,
+    requiredRoles: ["admin", "teacher", "student"],
+    subItems: [{ title: "Leave Requests", url: "/dashboard/leave" }],
   },
   {
     title: "Settings",
